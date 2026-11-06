@@ -1,0 +1,21 @@
+name: CI
+on:
+  push:
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with: { deno-version: v2.x }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Edge Function tests
+        run: deno test supabase/tests/functions.test.ts
+      - name: Type-check Edge Functions
+        run: deno check supabase/functions/webhook/index.ts supabase/functions/abandon-job/index.ts
+      - name: Netlify function tests
+        run: node --test netlify/tests/functions.test.js
+      - name: SQL tests (throwaway Postgres)
+        run: sudo apt-get install -y postgresql >/dev/null && sudo ./scripts/test-sql.sh

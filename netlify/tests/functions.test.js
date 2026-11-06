@@ -2,7 +2,7 @@
 const test = require("node:test");
 const assert = require("node:assert");
 
-process.env.PYTHON_APP_URL = "https://py.example.com/";
+process.env.LEAD_WEBHOOK_URL = "https://ref.supabase.co/functions/v1/webhook";
 process.env.WEBHOOK_SECRET = "s3cret";
 const leadCapture = require("../functions/lead-capture").handler;
 const submission = require("../functions/submission-created").handler;
@@ -17,7 +17,7 @@ test("lead-capture forwards with secret and netlify_form source", async () => {
   const calls = mockFetch();
   const r = await leadCapture({ httpMethod: "POST", body: JSON.stringify({ email: " Sam@X.co ", first_name: "Sam", step: 1 }) });
   assert.strictEqual(r.statusCode, 200);
-  assert.strictEqual(calls[0].url, "https://py.example.com/webhook/lead");
+  assert.strictEqual(calls[0].url, "https://ref.supabase.co/functions/v1/webhook");
   assert.strictEqual(calls[0].opts.headers["X-Webhook-Secret"], "s3cret");
   const sent = JSON.parse(calls[0].opts.body);
   assert.deepStrictEqual([sent.email, sent.source, sent.completed], ["sam@x.co", "netlify_form", false]);

@@ -1,0 +1,9 @@
+# Supabase project config (used by the Supabase CLI / GitHub Action).
+# Both functions authenticate with our own X-Webhook-Secret header, not a Supabase JWT.
+project_id = "zuma-cold-lead-nurture"
+
+[functions.webhook]
+verify_jwt = false
+
+[functions.abandon-job]
+verify_jwt = false

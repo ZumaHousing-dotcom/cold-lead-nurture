@@ -1,4 +1,4 @@
-// Shared helper: forwards a lead to the Python app. The secret only ever lives in Netlify env vars.
+// Shared helper: forwards a lead to the lead webhook. The secret only ever lives in Netlify env vars.
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 function isValidEmail(email) {
@@ -6,20 +6,21 @@ function isValidEmail(email) {
 }
 
 async function forwardLead(lead) {
-  const base = process.env.PYTHON_APP_URL;
+  // Full URL of the Supabase Edge Function, e.g. https://<ref>.supabase.co/functions/v1/webhook
+  const url = process.env.LEAD_WEBHOOK_URL;
   const secret = process.env.WEBHOOK_SECRET;
-  if (!base || !secret) throw new Error("PYTHON_APP_URL / WEBHOOK_SECRET not configured");
+  if (!url || !secret) throw new Error("LEAD_WEBHOOK_URL / WEBHOOK_SECRET not configured");
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 9000);
   try {
-    const res = await fetch(base.replace(/\/+$/, "") + "/webhook/lead", {
+    const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-Webhook-Secret": secret },
       body: JSON.stringify({ ...lead, email: lead.email.trim().toLowerCase(), source: "netlify_form" }),
       signal: controller.signal,
     });
-    if (!res.ok) throw new Error(`Python app responded ${res.status}`);
+    if (!res.ok) throw new Error(`Lead webhook responded ${res.status}`);
   } finally {
     clearTimeout(timer);
   }
