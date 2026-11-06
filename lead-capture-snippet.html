@@ -1,0 +1,106 @@
+<!--
+  Zuma lead-capture snippet.
+  Put this on the Netlify-hosted form page ONLY (https://tour.zumahousing.com), AFTER
+  <script src="form.js"></script>. Do NOT add it to AppFolio.
+
+  What it does
+   - email field blur/change  -> sends {email, first_name, room_interest, step: 1}
+   - first successful "Next"  -> sends the same with step: 2
+   - form success screen      -> sends completed: true   (this form posts to n8n, not Netlify Forms)
+  Calls are de-duplicated, use fetch keepalive, and fail silently. The relative path works
+  whether the page is opened directly or embedded in an iframe. No secret lives here.
+-->
+<script>
+(function () {
+  "use strict";
+
+  // ---- Selectors for the current form (tour.zumahousing.com). Edit if the markup changes. ----
+  var ENDPOINT = "/.netlify/functions/lead-capture";
+  var SEL = {
+    email: "#email",
+    firstName: "#firstName",
+    roomChecked: 'input[name="roomPreference"]:checked',
+    stepLabel: "#currentStep",          // text content = current step number
+    listingName: "#listing_name"        // hidden field, filled from the link's URL
+  };
+  var BRAND = "zuma";                   // this form is shared with another brand; only act for Zuma
+
+  var sent = {};                         // in-memory de-dupe (sessionStorage may be blocked in iframes)
+  var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+  function $(s) { return document.querySelector(s); }
+  function val(s) { var el = $(s); return el && el.value ? String(el.value).trim() : ""; }
+  function brandOk() { var c = $("#company"); return !c || !c.value || c.value === BRAND; }
+
+  function seen(key) {
+    if (sent[key]) return true;
+    try { if (sessionStorage.getItem("zlc:" + key)) return true; } catch (e) {}
+    return false;
+  }
+  function remember(key) {
+    sent[key] = true;
+    try { sessionStorage.setItem("zlc:" + key, "1"); } catch (e) {}
+  }
+
+  function send(step, completed, override) {
+    try {
+      if (!brandOk()) return;
+      var d = override || {};
+      var email = (d.email || val(SEL.email)).toLowerCase();
+      if (!EMAIL_RE.test(email)) return;
+      var key = email + "|" + (completed ? "done" : step);
+      if (seen(key)) return;
+      remember(key);
+
+      var room = d.room_interest || (($(SEL.roomChecked) || {}).value) || val(SEL.listingName);
+      fetch(ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        keepalive: true,
+        body: JSON.stringify({
+          email: email,
+          first_name: d.first_name || val(SEL.firstName),
+          room_interest: room || "",
+          step: String(step),
+          completed: !!completed
+        })
+      }).catch(function () {});
+    } catch (e) { /* never break the form */ }
+  }
+
+  // 1) Email entered (focusout bubbles, so this survives step re-rendering; "change" catches autofill)
+  function onEmail(e) {
+    if (e.target && e.target.matches && e.target.matches(SEL.email)) send(1, false);
+  }
+  document.addEventListener("focusout", onEmail, true);
+  document.addEventListener("change", onEmail, true);
+
+  // 2) First successful "Next": wrap the page's nextStep() and check the step actually advanced.
+  if (typeof window.nextStep === "function") {
+    var origNext = window.nextStep;
+    window.nextStep = function () {
+      var out = origNext.apply(this, arguments);
+      try {
+        var label = $(SEL.stepLabel);
+        var step = label ? parseInt(label.textContent, 10) : 2;
+        if (step > 1) send(step, false);
+      } catch (e) {}
+      return out;
+    };
+  }
+
+  // 3) Completion: wrap showSuccess(data), which form.js calls after the submit button is used.
+  if (typeof window.showSuccess === "function") {
+    var origSuccess = window.showSuccess;
+    window.showSuccess = function (data) {
+      try {
+        if (data && data.company && data.company !== BRAND) return origSuccess.apply(this, arguments);
+        send("completed", true, data ? {
+          email: data.email, first_name: data.first_name, room_interest: data.room_preference
+        } : null);
+      } catch (e) {}
+      return origSuccess.apply(this, arguments);
+    };
+  }
+})();
+</script>

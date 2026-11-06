@@ -1,0 +1,6 @@
+# Merge into the form site's netlify.toml (the site that serves tour.zumahousing.com).
+[functions]
+  directory = "netlify/functions"
+
+[build.environment]
+  NODE_VERSION = "20"

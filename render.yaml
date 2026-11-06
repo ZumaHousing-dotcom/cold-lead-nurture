@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: zuma-cold-lead-nurture
+    runtime: python
+    plan: starter            # needs an always-on instance + disk (free tier sleeps and has no disk)
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:create_app --factory --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    disk:
+      name: leads
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: DB_PATH
+        value: /var/data/leads.db
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: MAILCHIMP_API_KEY
+        sync: false
+      - key: MAILCHIMP_LIST_ID
+        sync: false
+      - key: MAILCHIMP_STATUS_IF_NEW
+        value: subscribed
+      - key: WEBHOOK_SECRET
+        generateValue: true
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: CLAUDE_MODEL
+        value: claude-sonnet-5-5
+      - key: ABANDON_AFTER_MIN
+        value: "60"
