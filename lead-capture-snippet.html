@@ -1,37 +1,69 @@
 <!--
-  Zuma lead-capture snippet.
-  Put this on the Netlify-hosted form page ONLY (https://tour.zumahousing.com), AFTER
-  <script src="form.js"></script>. Do NOT add it to AppFolio.
+  Zuma lead-capture snippet (v2: self-adapting).
+  Put this on the Netlify-hosted form page ONLY (https://tour.zumahousing.com), anywhere before </body>.
+  Do NOT add it to AppFolio.
 
   What it does
-   - email field blur/change  -> sends {email, first_name, room_interest, step: 1}
-   - first successful "Next"  -> sends the same with step: 2
-   - form success screen      -> sends completed: true   (this form posts to n8n, not Netlify Forms)
-  Calls are de-duplicated, use fetch keepalive, and fail silently. The relative path works
-  whether the page is opened directly or embedded in an iframe. No secret lives here.
+   - email field entered (blur/change/autofill) -> sends {email, first_name, room_interest, step: 1}
+   - form moves to step 2+                      -> sends the same with that step number
+   - success screen shows                       -> sends completed: true
+  Calls are de-duplicated, use fetch keepalive and fail silently. The relative endpoint works whether the
+  page is opened directly or embedded in an iframe. No secret lives here.
+
+  Why v2: it no longer wraps form.js functions (nextStep / showSuccess), so renaming or reworking them
+  cannot break capture. It watches the page itself (which .step is active, whether the success screen is
+  showing). Each hook accepts several selectors, and a self-check warns in the console (and sets
+  window.__zumaLeadCapture.ok = false) if the page no longer matches. scripts/check-form-hooks.mjs runs the
+  same check in CI so the team hears about drift before it ships.
 -->
 <script>
 (function () {
   "use strict";
 
-  // ---- Selectors for the current form (tour.zumahousing.com). Edit if the markup changes. ----
-  var ENDPOINT = "/.netlify/functions/lead-capture";
-  var SEL = {
-    email: "#email",
-    firstName: "#firstName",
-    roomChecked: 'input[name="roomPreference"]:checked',
-    stepLabel: "#currentStep",          // text content = current step number
-    listingName: "#listing_name"        // hidden field, filled from the link's URL
+  // ---- Config: the first selector that matches wins. Add new selectors here if the markup changes. ----
+  var CFG = {
+    endpoint: "/.netlify/functions/lead-capture",
+    brand: "zuma",                                   // the form is shared with another brand
+    brandField: ["#company", 'input[name="company"]'],
+    email: ["#email", 'input[type="email"]', 'input[name="email"]'],
+    firstName: ["#firstName", 'input[name="firstName"]', 'input[name="first_name"]'],
+    roomChecked: ['input[name="roomPreference"]:checked', 'input[name="room_interest"]:checked'],
+    listingName: ["#listing_name", 'input[name="listing_name"]'],
+    steps: [".step", "[data-step]"],                 // all step containers, in order
+    activeStepClass: "active",
+    stepLabel: ["#currentStep"],                     // optional: text = current step number
+    success: ["#successScreen", ".success-screen"],  // container shown after submit
+    successShownClass: "show"
   };
-  var BRAND = "zuma";                   // this form is shared with another brand; only act for Zuma
 
-  var sent = {};                         // in-memory de-dupe (sessionStorage may be blocked in iframes)
   var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+  var sent = {};            // in-memory de-dupe (sessionStorage can be blocked in iframes)
+  var lastEmail = "";       // remembered so completion still works if the fields are cleared
+  var lastFirst = "";
+  var status = (window.__zumaLeadCapture = { ok: true, missing: [], sent: 0 });
 
-  function $(s) { return document.querySelector(s); }
-  function val(s) { var el = $(s); return el && el.value ? String(el.value).trim() : ""; }
-  function brandOk() { var c = $("#company"); return !c || !c.value || c.value === BRAND; }
-
+  function find(list) {
+    for (var i = 0; i < list.length; i++) {
+      var el = document.querySelector(list[i]);
+      if (el) return el;
+    }
+    return null;
+  }
+  function findAll(list) {
+    for (var i = 0; i < list.length; i++) {
+      var els = document.querySelectorAll(list[i]);
+      if (els.length) return els;
+    }
+    return [];
+  }
+  function val(list) {
+    var el = find(list);
+    return el && el.value ? String(el.value).trim() : "";
+  }
+  function brandOk() {
+    var v = val(CFG.brandField);
+    return !v || v === CFG.brand;
+  }
   function seen(key) {
     if (sent[key]) return true;
     try { if (sessionStorage.getItem("zlc:" + key)) return true; } catch (e) {}
@@ -42,65 +74,98 @@
     try { sessionStorage.setItem("zlc:" + key, "1"); } catch (e) {}
   }
 
-  function send(step, completed, override) {
+  function send(step, completed) {
     try {
       if (!brandOk()) return;
-      var d = override || {};
-      var email = (d.email || val(SEL.email)).toLowerCase();
+      var email = (val(CFG.email) || lastEmail).toLowerCase();
       if (!EMAIL_RE.test(email)) return;
+      lastEmail = email;
+      lastFirst = val(CFG.firstName) || lastFirst;
       var key = email + "|" + (completed ? "done" : step);
       if (seen(key)) return;
       remember(key);
 
-      var room = d.room_interest || (($(SEL.roomChecked) || {}).value) || val(SEL.listingName);
-      fetch(ENDPOINT, {
+      var roomEl = find(CFG.roomChecked);
+      var room = (roomEl && roomEl.value) || val(CFG.listingName);
+      status.sent++;
+      fetch(CFG.endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         keepalive: true,
         body: JSON.stringify({
           email: email,
-          first_name: d.first_name || val(SEL.firstName),
+          first_name: lastFirst,
           room_interest: room || "",
-          step: String(step),
+          step: String(completed ? "completed" : step),
           completed: !!completed
         })
       }).catch(function () {});
     } catch (e) { /* never break the form */ }
   }
 
-  // 1) Email entered (focusout bubbles, so this survives step re-rendering; "change" catches autofill)
-  function onEmail(e) {
-    if (e.target && e.target.matches && e.target.matches(SEL.email)) send(1, false);
+  // 1) Email entered. focusout bubbles (works if steps are re-rendered); "change" catches autofill.
+  function isEmailField(t) {
+    if (!t || !t.matches) return false;
+    for (var i = 0; i < CFG.email.length; i++) if (t.matches(CFG.email[i])) return true;
+    return false;
   }
+  function onEmail(e) { if (isEmailField(e.target)) send(1, false); }
   document.addEventListener("focusout", onEmail, true);
   document.addEventListener("change", onEmail, true);
 
-  // 2) First successful "Next": wrap the page's nextStep() and check the step actually advanced.
-  if (typeof window.nextStep === "function") {
-    var origNext = window.nextStep;
-    window.nextStep = function () {
-      var out = origNext.apply(this, arguments);
-      try {
-        var label = $(SEL.stepLabel);
-        var step = label ? parseInt(label.textContent, 10) : 2;
-        if (step > 1) send(step, false);
-      } catch (e) {}
-      return out;
-    };
+  // 2) Step advance: which .step container is active (falls back to the step-number label).
+  function currentStep() {
+    var steps = findAll(CFG.steps);
+    for (var i = 0; i < steps.length; i++) {
+      if (steps[i].classList.contains(CFG.activeStepClass)) return i + 1;
+    }
+    var label = find(CFG.stepLabel);
+    var n = label ? parseInt(label.textContent, 10) : NaN;
+    return isNaN(n) ? 0 : n;
+  }
+  function onStepChange() {
+    var s = currentStep();
+    if (s > 1) send(s, false);
   }
 
-  // 3) Completion: wrap showSuccess(data), which form.js calls after the submit button is used.
-  if (typeof window.showSuccess === "function") {
-    var origSuccess = window.showSuccess;
-    window.showSuccess = function (data) {
-      try {
-        if (data && data.company && data.company !== BRAND) return origSuccess.apply(this, arguments);
-        send("completed", true, data ? {
-          email: data.email, first_name: data.first_name, room_interest: data.room_preference
-        } : null);
-      } catch (e) {}
-      return origSuccess.apply(this, arguments);
-    };
+  // 3) Completion: the success container becomes visible.
+  function successVisible() {
+    var el = find(CFG.success);
+    if (!el) return false;
+    if (CFG.successShownClass && el.classList.contains(CFG.successShownClass)) return true;
+    return false;
   }
+  function onSuccessChange() { if (successVisible()) send("completed", true); }
+
+  function watch(targets, handler, opts) {
+    if (!window.MutationObserver) return;
+    for (var i = 0; i < targets.length; i++) {
+      try { new MutationObserver(handler).observe(targets[i], opts); } catch (e) {}
+    }
+  }
+
+  function init() {
+    var missing = [];
+    if (!find(CFG.email)) missing.push("email field");
+    var steps = findAll(CFG.steps);
+    if (!steps.length) missing.push("step containers");
+    if (!find(CFG.success)) missing.push("success screen");
+
+    watch(steps, onStepChange, { attributes: true, attributeFilter: ["class"] });
+    var label = find(CFG.stepLabel);
+    if (label) watch([label], onStepChange, { childList: true, characterData: true, subtree: true });
+    var success = find(CFG.success);
+    if (success) watch([success], onSuccessChange, { attributes: true, attributeFilter: ["class"] });
+
+    status.missing = missing;
+    status.ok = missing.length === 0;
+    if (!status.ok && window.console && console.warn) {
+      console.warn("[zuma-lead-capture] page no longer matches the snippet; missing: " + missing.join(", ") +
+        ". Lead capture for these parts is disabled. Update CFG in the snippet.");
+    }
+  }
+
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
+  else init();
 })();
 </script>

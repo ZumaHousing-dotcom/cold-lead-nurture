@@ -30,7 +30,7 @@ Why a Netlify function in the middle? The webhook secret must never reach the br
 
 I inspected the live form: a 2-step page on Netlify with `firstName`/`email` on step 1 and `roomPreference` on step 2.
 
-1. **It is not a Netlify Form.** It posts completions to an n8n webhook, so Netlify's `submission-created` event never fires for it. The snippet therefore also reports completion itself (it wraps `showSuccess()` in `form.js`). `submission-created.js` is included and works if you ever move to Netlify Forms.
+1. **It is not a Netlify Form.** It posts completions to an n8n webhook, so Netlify's `submission-created` event never fires for it. The snippet therefore also reports completion itself (it detects the success screen appearing; see "Keeping the snippet working"). `submission-created.js` is included and works if you ever move to Netlify Forms.
    More reliable alternative: have the n8n workflow that receives the submission call the webhook directly (HTTP Request node, `POST {LEAD_WEBHOOK_URL}`, header `X-Webhook-Secret`, body `{"email": ..., "first_name": ..., "room_interest": <room_preference>, "completed": true}`). It is server-to-server, so ad blockers and closed tabs can't lose it.
 2. **The form is shared with another brand** (`company=scsh`). The snippet only acts when `company` is `zuma`.
 3. ROOM: page 1 has no room question, so step 1 uses the link's `listing_name` (if any); on completion it sends the chosen `roomPreference`.
@@ -96,7 +96,7 @@ Existing unsubscribed/cleaned contacts stay that way (the app only sets status f
 **Netlify** (the site that serves tour.zumahousing.com):
 1. Copy `netlify/functions/` and `netlify/lib/` into that site's repo and merge `netlify.toml`.
 2. Set `LEAD_WEBHOOK_URL` and `WEBHOOK_SECRET` in Site settings → Environment variables.
-3. Paste `lead-capture-snippet.html` right after `<script src="form.js"></script>`; redeploy.
+3. Paste `lead-capture-snippet.html` anywhere before `</body>` on the form page (order relative to `form.js` no longer matters); redeploy. Do this on a branch/deploy preview first.
 4. Add the consent line from `mailchimp/email-copy.md` next to the email field.
 
 ## Test it end to end
@@ -112,6 +112,23 @@ curl -X POST "https://YOUR-PROJECT-REF.supabase.co/functions/v1/abandon-job" -H 
 ```
 Then send `{"..., "completed": true}` for the same email: `form-completed` is added, `form-started`/`form-abandoned` go inactive, and Journey A exits.
 Cron history: `select * from cron.job_run_details order by start_time desc limit 10;`
+
+## Keeping the snippet working when the form changes
+
+`lead-capture-snippet.html` (v2) does **not** call or wrap any `form.js` function, so renaming or reworking `nextStep()` / `showSuccess()` cannot break it. It watches the page instead:
+
+| Signal | How it is detected |
+|---|---|
+| Email entered | `focusout`/`change` on the email field (`#email`, `input[type=email]`, `input[name=email]`) |
+| Step advanced | which `.step` container has the `active` class (falls back to the `#currentStep` label) |
+| Completed | `#successScreen` / `.success-screen` gets the `show` class |
+
+What can still break it is the page markup itself (e.g. dropping the `active`/`show` classes or the email field). Two guards catch that:
+- **Runtime self-check:** if the page no longer matches, the snippet logs `[zuma-lead-capture] ... missing: ...` to the browser console and sets `window.__zumaLeadCapture.ok = false`. Selectors live in one `CFG` block at the top; add the new selector there.
+- **CI drift check** (copy `scripts/check-form-hooks.mjs` into the form repo): `node check-form-hooks.mjs index.html form.js` fails the build if the email field, step containers, success screen, snippet, or the `active`/`show` class logic disappear.
+- **Browser smoke test:** `node scripts/snippet-smoke.js path/to/index.html` (needs Playwright) loads the page, simulates the three signals and asserts the calls, the de-duplication and the brand guard.
+
+Code can't safely rewrite itself, so this is detection plus a one-line fix, not auto-repair.
 
 ## Adding a second lead source later (e.g. AppFolio)
 
