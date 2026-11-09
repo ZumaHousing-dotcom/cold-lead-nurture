@@ -11,11 +11,11 @@ browser snippet --> /.netlify/functions/lead-capture --> Supabase "webhook" --> 
 ```
 
 ## 1. Add the files (from the zip, keep the paths)
-| File in the zip | Where it goes in the form repo |
+| File (in the zip's `files/` folder) | Where it goes in the form repo |
 |---|---|
 | `netlify/functions/lead-capture.js` | same path |
 | `netlify/lib/forward.js` | same path (kept outside `functions/` on purpose so it isn't deployed as an endpoint) |
-| `netlify.toml` (in this repo) | **merge** its lines into the site's `netlify.toml` (don't overwrite existing settings) |
+| `netlify.toml.ADD` | **merge** its lines into the site's existing `netlify.toml` (don't overwrite existing settings; create the file if there isn't one) |
 | `lead-capture-snippet.html` | not a file to deploy: copy its `<script>` block into the page (step 3) |
 | `scripts/check-form-hooks.mjs` | optional, for CI (step 6) |
 
@@ -69,4 +69,4 @@ It fails if the email field, step containers, success screen, snippet, or the `a
 Delete the `<script>` block from the page. Capture stops immediately; the function and env vars are harmless when idle.
 
 ## Questions
-Ask Jasper (jasper@zumahousing.com).
+Ask Jasper.
