@@ -23,7 +23,9 @@ Why a Netlify function in the middle? The webhook secret must never reach the br
 | `supabase/tests/` | Deno tests + SQL tests |
 | `netlify/functions/` | `lead-capture.js`, `submission-created.js` |
 | `lead-capture-snippet.html` | snippet for the Netlify-hosted form page |
-| `mailchimp/` | email copy + branded HTML shell |
+| `mailchimp/` | email copy, `emails/*.html` paste-ready emails (rebuild with `python3 mailchimp/build_emails.py`), HTML shell |
+| `docs/` | `GO-LIVE-CHECKLIST.md`, `DEVELOPER-HANDOFF.md` (instructions for whoever owns the form repo) |
+| `supabase/ops.sql`, `scripts/e2e-test.sh` | monitoring queries and the live end-to-end test |
 | `.github/workflows/` | `ci.yml` (tests), `deploy-supabase.yml` (deploy on merge to `main`) |
 
 ## How it fits the current form (https://tour.zumahousing.com)
