@@ -89,7 +89,9 @@ Exit condition: tag `form-completed` added to the contact (see README).
 
 ---
 
-## Journey B: Completed form confirmation (trigger: tag `form-completed` added)
+## Journey B: Completed form confirmation (NOT USED: Zuma already sends its own confirmation)
+
+Kept only as reference. Do not build this journey. The `form-completed` tag is still applied by the app, because it is what makes Journey A exit.
 
 ### B1. Immediately
 **Subject:** You're in, *|FNAME|*! Here's what happens next 🎉
