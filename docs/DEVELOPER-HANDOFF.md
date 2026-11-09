@@ -4,7 +4,7 @@
 **Nothing in `form.js` changes, and the existing n8n webhook is untouched.**
 
 ## What this does
-When someone types their email on step 1 (or reaches step 2) but never finishes, we want to email them a short follow-up sequence; people who do finish get a confirmation. A small browser snippet sends the lead to a Netlify function, which forwards it (with a secret the browser never sees) to our Supabase backend. The backend is already deployed and healthy.
+When someone types their email on step 1 (or reaches step 2) but never finishes, we want to email them a short follow-up sequence; people who do finish are simply marked as done so they don't get those emails. A small browser snippet sends the lead to a Netlify function, which forwards it (with a secret the browser never sees) to our Supabase backend. The backend is already deployed and healthy.
 
 ```
 browser snippet --> /.netlify/functions/lead-capture --> Supabase "webhook" --> Mailchimp

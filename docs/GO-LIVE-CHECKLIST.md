@@ -16,11 +16,11 @@ Tick in order. **Owner** says who has to do it.
 | 3 | Mailchimp merge fields `ROOM`, `STEP`, `SOURCE`, `NUDGELINE` (Text); `FNAME` default "there" | Jasper | README, "One-time Mailchimp setup" |
 | 4 | Run the end-to-end test with a test email | Jasper | `scripts/e2e-test.sh` (see its header). All lines must PASS |
 | 5 | Check the test lead in Supabase (`leads`) and Mailchimp (tags `form-completed`) | Jasper | `supabase/ops.sql` query 6 |
-| 6 | Build Journey A (abandoned, 4 emails) and Journey B (confirmation) | Jasper | HTML in `mailchimp/emails/`; copy in `mailchimp/email-copy.md`; trigger = tag added; Journey A exits on `form-completed` |
+| 6 | Build Journey A (abandoned, 4 emails). No confirmation journey: Zuma already sends one | Jasper | HTML in `mailchimp/emails/`; copy in `mailchimp/email-copy.md`; trigger = tag `form-abandoned` added; **must exit when `form-completed` is added** |
 | 7 | Add functions + snippet + `WEBHOOK_SECRET` to the form repo, on a preview deploy first | Savi | `docs/DEVELOPER-HANDOFF.md` |
 | 8 | Add the consent line next to the email field | Savi / Jasper | wording in `docs/DEVELOPER-HANDOFF.md` section 7 |
 | 9 | Test on the preview, then production, with your own email | Jasper + Savi | handoff section 5 |
-| 10 | Turn both journeys ON | Jasper | Mailchimp > Customer Journeys |
+| 10 | Turn the journey ON | Jasper | Mailchimp > Customer Journeys |
 
 ## After launch (first week)
 - Daily: run `supabase/ops.sql` queries **4** and **5**. Query 4 should be 0 (otherwise the cron job isn't running) and query 5 empty.

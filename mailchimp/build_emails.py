@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Builds the five Zuma emails as paste-ready Mailchimp HTML into mailchimp/emails/.
+"""Builds the four abandoned-form Zuma emails as paste-ready Mailchimp HTML into mailchimp/emails/.
 
     python3 mailchimp/build_emails.py
 
@@ -54,16 +54,6 @@ EMAILS = [
          cta="Finish my inquiry",
          after=["And if the timing’s just not right, no hard feelings. Come back any time, we’ll be here with the Wi-Fi already on.",
                 "Wishing you an amazing LA chapter,"], sign=""),
-    dict(file="B1-completed-confirmation", campaign="completed-1",
-         subject="You’re in, *|FNAME|*! Here’s what happens next \U0001F389",
-         preview="We got your inquiry. A Zuma human will be in touch soon.",
-         greeting="Hey *|FNAME|*! \U0001F389", nudge=False,
-         paras=["Thanks for sending over your inquiry, we’ve got it!", "<strong>What happens next</strong>"],
-         bullets=["1. Our team reviews your details and what you’re looking for",
-                  "2. We’ll reach out by email (or text if you opted in) to talk through next steps",
-                  "3. You can reply to this email any time with questions"],
-         paras2=["In the meantime, remember: every Zuma room is <strong>furnished</strong>, with <strong>utilities and Wi-Fi included</strong>. Less stuff to buy, more time to explore LA."],
-         cta=None, after=["Can’t wait to help you find your place."], sign="\U0001F49C"),
 ]
 
 def p(text, extra=""):

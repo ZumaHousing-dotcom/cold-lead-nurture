@@ -1,6 +1,6 @@
 # Zuma Cold Lead Nurture
 
-Emails people who started the Zuma inquiry form but never finished it, and confirms the ones who did.
+Emails people who started the Zuma inquiry form but never finished it, and quietly marks the ones who did finish, so they stop getting those emails. (Zuma already sends its own confirmation, so this project sends none.)
 Runs entirely on **Supabase** (Edge Functions + Postgres + pg_cron), **Netlify** (the form page + one proxy function) and **Mailchimp** (contacts and emails). Code lives in **GitHub**, which deploys it.
 
 ```
@@ -71,7 +71,7 @@ Covered: valid lead, bad secret, completed lead not downgraded (SQL-level), defa
 
 1. **Merge fields** (Audience → Settings → Audience fields and *|MERGE|* tags), all type *Text*, tags exactly: `ROOM`, `STEP`, `SOURCE`, `NUDGELINE`. Set `FNAME` default to "there".
 2. **Journey A, abandoned:** Automations → Customer Journeys → starting point **Tag added** = `form-abandoned`. Emails: A1 immediately, A2 +24h, A3 +72h, A4 +7 days (`mailchimp/email-copy.md`). Exit when tag `form-completed` is added. No re-entry.
-3. **Journey B, confirmation:** starting point **Tag added** = `form-completed`, one email (B1).
+3. **No confirmation journey:** Zuma already sends its own confirmation, so there is no Journey B. The `form-completed` tag is still applied, because it is what makes Journey A exit.
 4. Verify your sender domain (SPF/DKIM).
 5. Tags only appear in Mailchimp after the app has applied them once, so run the test below before building the journeys (or type the tag names in).
 
